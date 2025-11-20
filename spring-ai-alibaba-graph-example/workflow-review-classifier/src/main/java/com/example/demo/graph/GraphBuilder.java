@@ -50,74 +50,74 @@ public class GraphBuilder {
 
         KeyStrategyFactory keyStrategyFactory = new KeyStrategyFactoryBuilder()
                 .addPatternStrategy("input", (o1, o2) -> o2)
-                .addPatternStrategy("1711529066687_output", (o1, o2) -> o2)
-                .addPatternStrategy("17440815773820_output", (o1, o2) -> o2)
-                .addPatternStrategy("1711529036587_output", (o1, o2) -> o2)
-                .addPatternStrategy("1711529077513_output", (o1, o2) -> o2)
+                .addPatternStrategy("department_classifier_output", (o1, o2) -> o2)
+                .addPatternStrategy("negative_processor_output", (o1, o2) -> o2)
+                .addPatternStrategy("pos_neg_classifier_output", (o1, o2) -> o2)
+                .addPatternStrategy("positive_recorder_output", (o1, o2) -> o2)
                 .build();
 
         StateGraph stateGraph = new StateGraph(keyStrategyFactory);
         // add nodes
-        // —— QuestionClassifierNode [1711529036587] ——
+        // —— QuestionClassifierNode [pos_neg_classifier] ——
         QuestionClassifierNode questionClassifier1 = QuestionClassifierNode.builder()
             .chatClient(chatClient)
             .inputTextKey("input")
             .categories(List.of("positive feedback", "negative feedback"))
-            .outputKey("1711529036587_output")
+            .outputKey("pos_neg_classifier_output")
             .classificationInstructions(List.of("请根据输入内容选择对应分类"))
             .build();
-        stateGraph.addNode("1711529036587", AsyncNodeAction.node_async(questionClassifier1));
+        stateGraph.addNode("pos_neg_classifier", AsyncNodeAction.node_async(questionClassifier1));
 
-        // —— QuestionClassifierNode [1711529066687] ——
+        // —— QuestionClassifierNode [department_classifier] ——
         QuestionClassifierNode questionClassifier2 = QuestionClassifierNode.builder()
             .chatClient(chatClient)
             .inputTextKey("input")
             .categories(List.of("after-sale service", "product quality"))
-            .outputKey("1711529066687_output")
+            .outputKey("department_classifier_output")
             .classificationInstructions(List.of("请根据输入内容选择对应分类"))
             .build();
-        stateGraph.addNode("1711529066687", AsyncNodeAction.node_async(questionClassifier2));
+        stateGraph.addNode("department_classifier", AsyncNodeAction.node_async(questionClassifier2));
 
-        // —— HttpNode [1711529077513] ——
+        // —— HttpNode [positive_recorder] ——
         HttpNode http1 = HttpNode.builder()
                 .url("http://47.83.24.236:38080/negative")
                 .header("Content-Type", "application/json")
                 .retryConfig(new HttpNode.RetryConfig(3, 100, true))
-                .outputKey("1711529077513_output")
+                .outputKey("positive_recorder_output")
                 .build();
-        stateGraph.addNode("1711529077513", AsyncNodeAction.node_async(http1));
+        stateGraph.addNode("positive_recorder", AsyncNodeAction.node_async(http1));
 
-        // —— HttpNode [17440815773820] ——
+        // —— HttpNode [negative_processor] ——
         HttpNode http2 = HttpNode.builder()
                 .url("http://47.83.24.236:38080/positive")
                 .header("Content-Type", "application/json")
                 .retryConfig(new HttpNode.RetryConfig(3, 100, true))
-                .outputKey("17440815773820_output")
+                .outputKey("negative_processor_output")
                 .build();
-        stateGraph.addNode("17440815773820", AsyncNodeAction.node_async(http2));
+        stateGraph.addNode("negative_processor", AsyncNodeAction.node_async(http2));
 
 
         // add edges
-        stateGraph.addEdge(START, "1711529036587");
-        stateGraph.addEdge("1711529077513", END);
-        stateGraph.addEdge("17440815773820", END);
-        stateGraph.addConditionalEdges("1711529036587",
+        stateGraph.addEdge(START, "pos_neg_classifier");
+        stateGraph.addEdge("positive_recorder", END);
+        stateGraph.addEdge("negative_processor", END);
+        stateGraph.addConditionalEdges("pos_neg_classifier",
             edge_async(state -> {
-                String value = state.value("1711529036587_output", String.class).orElse("");
+                String value = state.value("pos_neg_classifier_output", String.class).orElse("");
             	if (value.contains("negative feedback")) return "negative feedback";
             	if (value.contains("positive feedback")) return "positive feedback";
                 return null;
             }),
-            Map.of("negative feedback", "1711529066687", "positive feedback", "17440815773820")
+            Map.of("negative feedback", "department_classifier", "positive feedback", "negative_processor")
         );
-        stateGraph.addConditionalEdges("1711529066687",
+        stateGraph.addConditionalEdges("department_classifier",
             edge_async(state -> {
-                String value = state.value("1711529066687_output", String.class).orElse("");
+                String value = state.value("department_classifier_output", String.class).orElse("");
             	if (value.contains("after-sale service")) return "after-sale service";
                 if (value.contains("product quality")) return "product quality";
                 return null;
             }),
-            Map.of("after-sale service", "1711529077513", "product quality", "1711529077513")
+            Map.of("after-sale service", "positive_recorder", "product quality", "positive_recorder")
         );
 
         printGraphImage(stateGraph);
